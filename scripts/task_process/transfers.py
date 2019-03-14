@@ -5,22 +5,18 @@
 from __future__ import division, print_function
 import json
 import logging
-import threading
 import os
 
-from WMCore.Services.PhEDEx.PhEDEx import PhEDEx
-from WMCore.Storage.TrivialFileCatalog import readTFC
-import fts3.rest.client.easy as fts3
-from datetime import timedelta
-from RESTInteractions import HTTPRequests
-from ServerUtilities import  encodeRequest
+from TransferInterface.RegisterFiles import submit
+from TransferInterface.MonitorTransfers import monitor
+
 
 if not os.path.exists('task_process/transfers'):
     os.makedirs('task_process/transfers')
 
 logging.basicConfig(
     filename='task_process/transfers/transfer_inject.log',
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s[%(relativeCreated)6d]%(threadName)s: %(message)s'
 )
 
@@ -245,7 +241,9 @@ class submit_thread(threading.Thread):
                            )
         # TODO: fts retries?? check delay
 
-        jobid = fts3.submit(self.context, job)
+        jobid = fts3.submit(self.context, job,
+                            delegation_lifetime=timedelta(hours=48),
+                            delegate_when_lifetime_lt=timedelta(hours=24))
 
         self.jobids.append(jobid)
 
@@ -321,8 +319,21 @@ def submit(phedex, context, toTrans):
 
         tx_from_source = [[x[0], x[1], x[2], source] for x in zip(source_pfns, dest_pfns, ids)] 
 
+        # TODO: registration on Rucio
+        from rucio.client.replicaclient import ReplicaClient
+
+        R = ReplicaClient()
+
+        R.add_replicas(rse=OPTIONS.rse, files=source_lfns)
+
         for files in chunks(tx_from_source, 200):
-            thread = submit_thread(threadLock, logging, context, files, source, jobids, to_update)
+            thread = submit_thread(threadLock,
+                                   logging,
+                                   context,
+                                   files,
+                                   source,
+                                   jobids,
+                                   to_update)
             thread.start()
             threads.append(thread)
 
@@ -344,67 +355,99 @@ def perform_transfers(inputFile, lastLine, _lastFile, context, phedex):
     :param lastLine:
     :return:
     """
-
-    #threadLock = threading.Lock()
-    #threads = []
     transfers = []
     logging.info("starting from line: %s", lastLine)
 
+    file_to_submit = []
+    to_submit_columns = ["source_lfn",
+                         "destination_lfn",
+                         "id",
+                         "source",
+                         "destination",
+                         "checksums",
+                         "filesize"
+                         ]
+    transfers = []
+    user = None
+    taskname = None
+    destination = None
+
+    with open(inputFile) as _list:
+        doc = json.loads(_list.readlines()[0])
+        user = doc['username']
+        taskname = doc['taskname']
+
     with open(inputFile) as _list:
         for _data in _list.readlines()[lastLine:]:
+            file_to_submit = []
             try:
                 lastLine += 1
                 doc = json.loads(_data)
-            except:
+            except Exception:
                 continue
-            transfers.append([doc["source_lfn"],
-                              doc["destination_lfn"],
-                              doc["id"],
-                              doc["source"],
-                              doc["destination"]])
+            for column in to_submit_columns:
+                if column not in ['checksums']:
+                    file_to_submit.append(doc[column])
+                if column == "checksums":
+                    file_to_submit.append(doc["checksums"]["adler32"])
+            transfers.append(file_to_submit)
+            destination = doc["destination"]
 
-        jobids = []
-        if len(transfers) > 0:
-            jobids = submit(phedex, context, transfers)
+    job_data = {'taskname': taskname,
+                'username': user,
+                'destination': destination,
+                'proxy': proxy,
+                'rest': rest_filetransfers}
 
-            for jobid in jobids:
-                logging.info("Monitor link: https://fts3.cern.ch:8449/fts3/ftsmon/#/job/"+jobid)
+    if len(transfers) > 0:
+        if not direct:
+            try:
+                submit((transfers, to_submit_columns), job_data, logging)
+                # TODO: send to dashboard
+            except Exception:
+                logging.exception('Submission process failed.')
 
-            # TODO: send to dashboard
+            with open("task_process/transfers/last_transfer_new.txt", "w+") as _last:
+                _last.write(str(lastLine))
 
-        _lastFile.write(str(lastLine))
+            os.rename("task_process/transfers/last_transfer_new.txt", "task_process/transfers/last_transfer.txt")
+        elif direct:
+            try:
+                submit((transfers, to_submit_columns), job_data, logging, direct=True)
+                # TODO: send to dashboard
+            except Exception:
+                logging.exception('Submission process failed.')
 
-    return transfers, jobids
+            with open("task_process/transfers/last_transfer_direct_new.txt", "w+") as _last:
+                _last.write(str(lastLine))
+
+            os.rename("task_process/transfers/last_transfer_direct_new.txt", "task_process/transfers/last_transfer_direct.txt")
+
+    return user, taskname
 
 
-def state_manager(fts):
+def monitor_manager(user, taskname):
+    """[summary]
+
     """
+    proxy = None
+    if os.path.exists('task_process/rest_filetransfers.txt'):
+        with open("task_process/rest_filetransfers.txt", "r") as _rest:
+            _rest.readline().split('\n')[0]
+            proxy = os.getcwd() + "/" + _rest.readline()
+            logging.info("Proxy: %s", proxy)
+            os.environ["X509_USER_PROXY"] = proxy
 
-    """
-    threadLock = threading.Lock()
-    threads = []
-    jobs_done = []
-    jobs_ongoing = []
-    failed_id = {}
-    failed_reasons = {}
-    done_id = {}
+    if not proxy:
+        logging.info('No proxy available yet - waiting for first post-job')
+        return None
 
-    # TODO: puo esser utile togliere questo file? mmm forse no
+    try:
+        monitor(user, taskname, logging)
+    except Exception:
+        logging.exception('Monitor process failed.')
 
-    if os.path.exists('task_process/transfers/fts_jobids.txt'):
-        with open("task_process/transfers/fts_jobids.txt", "r") as _jobids:
-            lines = _jobids.readlines()
-            for line in lines:
-                if line:
-                    jobid = line.split('\n')[0]
-                if jobid:
-                    thread = check_states_thread(threadLock, logging, fts, jobid, jobs_ongoing, done_id, failed_id, failed_reasons)
-                    thread.start()
-                    threads.append(thread)
-            _jobids.close()
-
-        for t in threads:
-            t.join()
+    return 0
 
         try:
             for jobID, _ in done_id.iteritems():
@@ -415,7 +458,8 @@ def state_manager(fts):
                 else:
                     doneReady = 0
                 if len(failed_id[jobID]) > 0:
-                    failedReady = mark_failed(failed_id[jobID], failed_reasons[jobID])
+                    failedReady = mark_failed(failed_id[jobID],
+                                              failed_reasons[jobID])
                 else:
                     failedReady = 0
 
@@ -434,7 +478,8 @@ def state_manager(fts):
             logging.info("Writing: %s", line)
             _jobids.write(line+"\n")
 
-    os.rename("task_process/transfers/fts_jobids_new.txt", "task_process/transfers/fts_jobids.txt")
+    os.rename("task_process/transfers/fts_jobids_new.txt",
+              "task_process/transfers/fts_jobids.txt")
 
     return jobs_ongoing
 
@@ -450,19 +495,23 @@ def submission_manager(phedex, context):
             last_line = int(read)
             logging.info("last line is: %s", last_line)
             _last.close()
+    
+    # TODO: if the following fails check not to leave a corrupted file
+    r = perform_transfers("task_process/transfers.txt",
+                          last_line)
+
+    if os.path.exists('task_process/transfers/last_transfer_direct.txt'):
+        with open("task_process/transfers/last_transfer_direct.txt", "r") as _last:
+            read = _last.readline()
+            last_line = int(read)
+            logging.info("last line is: %s", last_line)
+            _last.close()
 
     # TODO: if the following fails check not to leave a corrupted file
-    with open("task_process/transfers/last_transfer_new.txt", "w+") as _last:
-        _, jobids = perform_transfers("task_process/transfers.txt", last_line, _last, context, phedex)
-        _last.close()
-        os.rename("task_process/transfers/last_transfer_new.txt", "task_process/transfers/last_transfer.txt")
+    r_d = perform_transfers("task_process/transfers_direct.txt",
+                            last_line, direct=True)
 
-    with open("task_process/transfers/fts_jobids.txt", "a") as _jobids:
-        for job in jobids:
-            _jobids.write(str(job)+"\n")
-        _jobids.close()
-
-    return jobids
+    return r
 
 
 def algorithm():
@@ -479,14 +528,7 @@ def algorithm():
     - append new fts job ids to fts_jobids.txt
     """
 
-    # TODO: pass by configuration
-    fts = HTTPRequests('fts3.cern.ch:8446/',
-                       proxy,
-                       proxy)
-
-    context = fts3.Context('https://fts3.cern.ch:8446', proxy, proxy, verify=True)
-    logging.debug("Delegating proxy: "+fts3.delegate(context, lifetime=timedelta(hours=48), force=False))
-
+    user = None
     try:
         phedex = PhEDEx(responseType='xml',
                         httpDict={'key': proxy, 'cert': proxy, 'pycurl':True})
@@ -507,5 +549,4 @@ if __name__ == "__main__":
         algorithm()
     except Exception:
         logging.exception("error during main loop")
-    logging.debug("transfer_inject.py exiting")
-
+    logging.debug("transfers.py exiting")

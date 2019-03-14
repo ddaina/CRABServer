@@ -18,7 +18,7 @@ from ServerUtilities import getHashLfn, encodeRequest, oracleOutputMapping
 from RESTInteractions import HTTPRequests
 from WMCore.Configuration import loadConfigurationFile
 
-config = loadConfigurationFile(os.path.abspath('config.py'))
+config = loadConfigurationFile(os.path.abspath('PublisherConfig.py'))
 
 task_path = config.General.task_path
 

@@ -294,6 +294,7 @@ class Master(object):
             logger.info(wfnamemsg+msg)
             data = {'workflow': workflow}
             url = self.rest
+            url = 'cmsweb-testbed.cern.ch'
             connection = HTTPRequests(url,
                                      self.config.opsCert,
                                      self.config.opsKey)
@@ -303,6 +304,7 @@ class Master(object):
             except Exception as ex:
                 # logger.info(wfnamemsg+encodeRequest(data))
                 logger.warn('Error retrieving status from cache for %s.' % workflow)
+                logger.warn('%s.' % ex)
                 return 0
 
             try:
@@ -456,7 +458,7 @@ class Master(object):
                 logger.info(". publisher.py %s" % (workflow))
 
                 # find the location in the current environment of the script we want to run
-                import Publisher.TaskPublish as tp
+                import TaskPublish as tp
                 taskPublishScript = tp.__file__
                 subprocess.call(["python", taskPublishScript, workflow])
 
