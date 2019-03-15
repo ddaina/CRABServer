@@ -200,12 +200,18 @@ class submit_thread(threading.Thread):
             # checksums = [x[7] for x in self.files]
 
             if self.direct:
-                self.log.info("Registering direct files")
-                crabInj.register_crab_replicas(self.destination, dest_lfns, sizes, None)
-                crabInj.attach_files(dest_lfns, self.taskname)
-                self.log.info("Registered {0} direct files.".format(len(dest_lfns)))
-                self.log.debug("Registered direct files: {0}".format(dest_lfns))
-                return
+                try:
+                    self.log.info("Registering direct files")
+                    crabInj.register_crab_replicas(self.destination, dest_lfns, sizes, None)
+                    crabInj.attach_files(dest_lfns, self.taskname)
+                    self.log.info("Registered {0} direct files.".format(len(dest_lfns)))
+                    self.log.debug("Registered direct files: {0}".format(dest_lfns))
+                    self.threadLock.release()
+                    return
+                except Exception:
+                    self.log.exception("Failed to register direct files.")
+                    self.threadLock.release()
+                    return
 
             self.log.info("Registering temp file")
             # crabInj.register_temp_replicas(self.source+"_Temp", dest_lfns, source_pfns, sizes, checksums)

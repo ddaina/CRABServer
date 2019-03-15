@@ -16,7 +16,7 @@ if not os.path.exists('task_process/transfers'):
 
 logging.basicConfig(
     filename='task_process/transfers/transfer_inject.log',
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s[%(relativeCreated)6d]%(threadName)s: %(message)s'
 )
 
