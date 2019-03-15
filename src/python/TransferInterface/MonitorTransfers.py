@@ -31,24 +31,27 @@ def monitor(user, taskname, log):
         id_map = {}
         lfn_map = {}
         source_rse = {}
-        with open('task_process/transfers.txt', 'r') as _list:
-            for _data in _list.readlines():
-                try:
-                    doc = json.loads(_data)
-                    id_map.update({doc['destination_lfn']: doc['id']})
-                    lfn_map.update({doc['id']: doc['destination_lfn']})
-                    source_rse.update({doc['destination_lfn']: doc['source']+"_Temp"})
-                except Exception:
-                    continue
-        with open('task_process/transfers_direct.txt', 'r') as _list:
-            for _data in _list.readlines():
-                try:
-                    doc = json.loads(_data)
-                    id_map.update({doc['destination_lfn']: doc['id']})
-                    lfn_map.update({doc['id']: doc['destination_lfn']})
-                    source_rse.update({doc['destination_lfn']: doc['source']+"_Temp"})
-                except Exception:
-                    continue
+        
+        if os.path.exists('task_process/transfers.txt'):
+            with open('task_process/transfers.txt', 'r') as _list:
+                for _data in _list.readlines():
+                    try:
+                        doc = json.loads(_data)
+                        id_map.update({doc['destination_lfn']: doc['id']})
+                        lfn_map.update({doc['id']: doc['destination_lfn']})
+                        source_rse.update({doc['destination_lfn']: doc['source']+"_Temp"})
+                    except Exception:
+                        continue
+        if os.path.exists('task_process/transfers_direct.txt'):
+            with open('task_process/transfers_direct.txt', 'r') as _list:
+                for _data in _list.readlines():
+                    try:
+                        doc = json.loads(_data)
+                        id_map.update({doc['destination_lfn']: doc['id']})
+                        lfn_map.update({doc['id']: doc['destination_lfn']})
+                        source_rse.update({doc['destination_lfn']: doc['source']+"_Temp"})
+                    except Exception:
+                        continue
 
         try:
             rules_ = crabInj.cli.list_did_rules(scope, name)
