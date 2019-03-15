@@ -1,6 +1,7 @@
 
 import os
 import json
+from rucio.common.exception import ReplicaNotFound
 from RESTInteractions import HTTPRequests
 from ServerUtilities import encodeRequest
 from TransferInterface import chunks, mark_failed, mark_transferred, CRABDataInjector
@@ -120,25 +121,35 @@ def monitor(user, taskname, log):
 
         try:
             if len(list_failed) > 0:
-                list_failed_name = [{'scope': scope, 'name': x} for x in list_failed]
+                list_failed_name = [{'scope': scope, 'name': x[0]} for x in list_failed]
                 log.debug("Detaching %s" % list_failed_name)
                 crabInj.cli.detach_dids(scope, name, list_failed_name)
                 sources = list(set([source_rse[x['name']] for x in list_failed_name]))
                 for source in sources:
                     crabInj.delete_replicas(source, [x for x in list_failed_name if source_rse[x['name']] == source])
                 mark_failed([id_map[x[0]] for x in list_failed], [x[1] for x in list_failed], oracleDB)
+        except ReplicaNotFound:
+                try:
+                    mark_failed([id_map[x[0]] for x in list_failed], [x[1] for x in list_failed], oracleDB)
+                except Exception:
+                    log.exception("Failed to update status for failed files")
         except Exception:
             log.exception("Failed to update status for failed files")
 
         try:
             if len(list_stuck) > 0:
-                list_stuck_name = [{'scope': scope, 'name': x} for x in list_stuck]
+                list_stuck_name = [{'scope': scope, 'name': x[0]} for x in list_stuck]
                 log.debug("Detaching %s" % list_stuck_name)
                 crabInj.cli.detach_dids(scope, name, list_stuck_name)
                 sources = list(set([source_rse[x['name']] for x in list_stuck_name]))
                 for source in sources:
                     crabInj.delete_replicas(source, [x for x in list_stuck_name if source_rse[x['name']] == source])
                 mark_failed([id_map[x[0]] for x in list_stuck], [x[1] for x in list_stuck], oracleDB)
+        except ReplicaNotFound:
+                try:
+                    mark_failed([id_map[x[0]] for x in list_failed], [x[1] for x in list_failed], oracleDB)
+                except Exception:
+                    log.exception("Failed to update status for failed files")
         except Exception:
             log.exception("Failed to update status for stuck rule")
 
