@@ -7,7 +7,6 @@ import json
 import logging
 import os
 
-from TransferInterface import chunks, mark_transferred, mark_failed
 from TransferInterface.RegisterFiles import submit
 from TransferInterface.MonitorTransfers import monitor
 
@@ -25,15 +24,18 @@ USER = None
 TASKNAME = None
 
 
-def perform_transfers(inputFile, lastLine):
+def perform_transfers(inputFile, lastLine, direct=False):
     """
     get transfers and update last read line number
     :param inputFile:
     :param lastLine:
     :return:
     """
+    if not os.path.exists(inputFile):
+        return None, None
+
     proxy = None
-    if os.path.exists('task_process/rest_filetransfers.txt'): 
+    if os.path.exists('task_process/rest_filetransfers.txt'):
         with open("task_process/rest_filetransfers.txt", "r") as _rest:
             rest_filetransfers = _rest.readline().split('\n')[0]
             proxy = os.getcwd() + "/" + _rest.readline()
@@ -71,7 +73,7 @@ def perform_transfers(inputFile, lastLine):
             try:
                 lastLine += 1
                 doc = json.loads(_data)
-            except:
+            except Exception:
                 continue
             for column in to_submit_columns:
                 if column not in ['checksums']:
@@ -88,16 +90,28 @@ def perform_transfers(inputFile, lastLine):
                 'rest': rest_filetransfers}
 
     if len(transfers) > 0:
-        try:
-            submit((transfers, to_submit_columns), job_data, logging)
-            # TODO: send to dashboard
-        except:
-            logging.exception('Submission process failed.')
+        if not direct:
+            try:
+                submit((transfers, to_submit_columns), job_data, logging)
+                # TODO: send to dashboard
+            except Exception:
+                logging.exception('Submission process failed.')
 
-        with open("task_process/transfers/last_transfer_new.txt", "w+") as _last:
-            _last.write(str(lastLine))
+            with open("task_process/transfers/last_transfer_new.txt", "w+") as _last:
+                _last.write(str(lastLine))
 
-        os.rename("task_process/transfers/last_transfer_new.txt", "task_process/transfers/last_transfer.txt")
+            os.rename("task_process/transfers/last_transfer_new.txt", "task_process/transfers/last_transfer.txt")
+        elif direct:
+            try:
+                submit((transfers, to_submit_columns), job_data, logging, direct=True)
+                # TODO: send to dashboard
+            except Exception:
+                logging.exception('Submission process failed.')
+
+            with open("task_process/transfers/last_transfer_direct_new.txt", "w+") as _last:
+                _last.write(str(lastLine))
+
+            os.rename("task_process/transfers/last_transfer_direct_new.txt", "task_process/transfers/last_transfer_direct.txt")
 
     return user, taskname
 
@@ -107,9 +121,9 @@ def monitor_manager(user, taskname):
 
     """
     proxy = None
-    if os.path.exists('task_process/rest_filetransfers.txt'): 
+    if os.path.exists('task_process/rest_filetransfers.txt'):
         with open("task_process/rest_filetransfers.txt", "r") as _rest:
-            _ = _rest.readline().split('\n')[0]
+            _rest.readline().split('\n')[0]
             proxy = os.getcwd() + "/" + _rest.readline()
             logging.info("Proxy: %s", proxy)
             os.environ["X509_USER_PROXY"] = proxy
@@ -120,7 +134,7 @@ def monitor_manager(user, taskname):
 
     try:
         monitor(user, taskname, logging)
-    except:
+    except Exception:
         logging.exception('Monitor process failed.')
 
     return 0
@@ -137,12 +151,23 @@ def submission_manager():
             last_line = int(read)
             logging.info("last line is: %s", last_line)
             _last.close()
+    
+    # TODO: if the following fails check not to leave a corrupted file
+    r = perform_transfers("task_process/transfers.txt",
+                          last_line)
+
+    if os.path.exists('task_process/transfers/last_transfer_direct.txt'):
+        with open("task_process/transfers/last_transfer_direct.txt", "r") as _last:
+            read = _last.readline()
+            last_line = int(read)
+            logging.info("last line is: %s", last_line)
+            _last.close()
 
     # TODO: if the following fails check not to leave a corrupted file
-    exit = perform_transfers("task_process/transfers.txt",
-                             last_line)
+    perform_transfers("task_process/transfers_direct.txt",
+                      last_line, direct=True)
 
-    return exit
+    return r
 
 
 def algorithm():
@@ -159,16 +184,18 @@ def algorithm():
     - append new fts job ids to fts_jobids.txt
     """
 
+    user = None
     try:
         user, taskname = submission_manager()
-    except:
+    except Exception:
         logging.exception('Submission proccess failed.')
 
     if not user:
-        logging.info('Nothing to monitor yet...')
+        logging.info('Nothing to monitor yet.')
+        return
     try:
         monitor_manager(user, taskname)
-    except:
+    except Exception:
         logging.exception('Monitor proccess failed.')
 
     return
