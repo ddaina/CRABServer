@@ -164,6 +164,8 @@ def algorithm():
     except:
         logging.exception('Submission proccess failed.')
 
+    if not user:
+        logging.info('Nothing to monitor yet...')
     try:
         monitor_manager(user, taskname)
     except:
