@@ -16,7 +16,7 @@ if not os.path.exists('task_process/transfers'):
 
 logging.basicConfig(
     filename='task_process/transfers/transfer_inject.log',
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s[%(relativeCreated)6d]%(threadName)s: %(message)s'
 )
 
@@ -104,9 +104,8 @@ def perform_transfers(inputFile, lastLine, direct=False):
         elif direct:
             try:
                 submit((transfers, to_submit_columns), job_data, logging, direct=True)
-                # TODO: send to dashboard
             except Exception:
-                logging.exception('Submission process failed.')
+                logging.exception('Registering direct stage files failed.')
 
             with open("task_process/transfers/last_transfer_direct_new.txt", "w+") as _last:
                 _last.write(str(lastLine))
@@ -151,7 +150,7 @@ def submission_manager():
             last_line = int(read)
             logging.info("last line is: %s", last_line)
             _last.close()
-    
+
     # TODO: if the following fails check not to leave a corrupted file
     r = perform_transfers("task_process/transfers.txt",
                           last_line)
@@ -163,9 +162,9 @@ def submission_manager():
             logging.info("last line is: %s", last_line)
             _last.close()
 
-    # TODO: if the following fails check not to leave a corrupted file
-    perform_transfers("task_process/transfers_direct.txt",
-                      last_line, direct=True)
+    if os.path.exists('task_process/transfers_direct.txt'):
+        perform_transfers("task_process/transfers_direct.txt",
+                          last_line, direct=True)
 
     return r
 
