@@ -149,7 +149,6 @@ def submission_manager():
             read = _last.readline()
             last_line = int(read)
             logging.info("last line is: %s", last_line)
-            _last.close()
 
     # TODO: if the following fails check not to leave a corrupted file
     r = perform_transfers("task_process/transfers.txt",
@@ -160,7 +159,12 @@ def submission_manager():
             read = _last.readline()
             last_line = int(read)
             logging.info("last line is: %s", last_line)
-            _last.close()
+    else:
+        with open("task_process/transfers/last_transfer_direct.txt", "w+") as _last:
+            last_line = 0 
+            _last.write(str(last_line))
+            logging.info("last line direct is: %s", last_line)
+
 
     if os.path.exists('task_process/transfers_direct.txt'):
         perform_transfers("task_process/transfers_direct.txt",
