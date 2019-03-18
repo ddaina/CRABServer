@@ -204,6 +204,9 @@ class submit_thread(threading.Thread):
                     self.log.info("Registering direct files")
                     crabInj.register_crab_replicas(self.destination, dest_lfns, sizes, None)
                     crabInj.attach_files(dest_lfns, self.taskname)
+                    with open("task_process/transfers/registered_direct_files.txt", "a+") as list_file:
+                        for dest_lfn in dest_lfns:
+                            list_file.write("%s\n" % dest_lfn)
                     self.log.info("Registered {0} direct files.".format(len(dest_lfns)))
                     self.log.debug("Registered direct files: {0}".format(dest_lfns))
                     self.threadLock.release()

@@ -31,7 +31,7 @@ def monitor(user, taskname, log):
         id_map = {}
         lfn_map = {}
         source_rse = {}
-        
+
         if os.path.exists('task_process/transfers.txt'):
             with open('task_process/transfers.txt', 'r') as _list:
                 for _data in _list.readlines():
@@ -112,6 +112,13 @@ def monitor(user, taskname, log):
             except Exception:
                 log.error("No FTS job ID available for stuck transfer %s. Rucio could have failed to submit FTS job." % name_)
                 list_failed.append((name_, "No FTS job ID available for stuck transfers. Rucio could have failed to submit FTS job."))
+
+        if os.path.exists('task_process/transfers/registered_direct_files.txt'):
+            with open("task_process/transfers/registered_direct_files.txt", "r") as list_file:
+                direct_files = [x.split('\n')[0] for x in list_file.readlines()]
+                log.debug("Checking if some failed files were directly staged from wn: {0}".format(str(direct_files)))
+                list_failed = [x for x in list_failed if x[0] not in direct_files]
+                log.debug("{0} files to be marked as failed.".format(str(len(list_failed))))
 
         try:
 
