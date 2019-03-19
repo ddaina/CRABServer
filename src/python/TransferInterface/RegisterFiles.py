@@ -106,12 +106,12 @@ def submit(trans_tuple, job_data, log, direct=False):
             elif direct:
                 log.info("Registering direct stageout: %s", files)
                 thread = submit_thread(threadLock,
-                                    log,
-                                    (files, tx_columns),
-                                    job_columns,
-                                    proxy,
-                                    to_update,
-                                    direct=True)
+                                       log,
+                                       (files, tx_columns),
+                                       job_columns,
+                                       proxy,
+                                       to_update,
+                                       direct=True)
                 thread.start()
                 threads.append(thread)
 
@@ -186,15 +186,19 @@ class submit_thread(threading.Thread):
                 return
         try:
             # TODO: pass crabInj to threads
+            direct_files = []
+            if os.path.exists('task_process/transfers/registered_direct_files.txt'):
+                with open("task_process/transfers/registered_direct_files.txt", "r") as list_file:
+                    direct_files = [x.split('\n')[0] for x in list_file.readlines()]
             self.log.debug(self.job_col)
-            dest_lfns = [x[self.job_col.index('dest_lfns')] for x in self.job]
-            source_pfns = [x[self.job_col.index('source_pfns')] for x in self.job]
+            dest_lfns = [x[self.job_col.index('dest_lfns')] for x in self.job if x[self.job_col.index('dest_lfns')] not in direct_files]
+            source_pfns = [x[self.job_col.index('source_pfns')] for x in self.job if x[self.job_col.index('dest_lfns')] not in direct_files]
 
             self.log.info(self.source+"_Temp")
             self.log.info(dest_lfns)
             self.log.info(source_pfns)
 
-            sizes = [x[self.job_col.index('filesizes')] for x in self.job]
+            sizes = [x[self.job_col.index('filesizes')] for x in self.job if x[self.job_col.index('dest_lfns')] not in direct_files]
 
             # TODO: actual checksum format not accepted by RUCIO
             # checksums = [x[7] for x in self.files]
