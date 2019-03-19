@@ -26,14 +26,22 @@ TASKNAME = None
 
 def perform_transfers(inputFile, lastLine, direct=False):
     """
-    get transfers and update last read line number
-    :param inputFile:
-    :param lastLine:
-    :return:
+    get transfers submitted and update last read line number
+
+    :param inputFile: file name containing post job files ready
+    :type inputFile: str
+    :param lastLine: last line processed
+    :type lastLine: int
+    :param direct: job output stored on temp or directly, defaults to False
+    :param direct: bool, optional
+    :return: (username,taskname) or None in case of critical error
+    :rtype: tuple or None
     """
+
     if not os.path.exists(inputFile):
         return None, None
 
+    # Get proxy and rest endpoint information
     proxy = None
     if os.path.exists('task_process/rest_filetransfers.txt'):
         with open("task_process/rest_filetransfers.txt", "r") as _rest:
@@ -67,6 +75,7 @@ def perform_transfers(inputFile, lastLine, direct=False):
         user = doc['username']
         taskname = doc['taskname']
 
+    # Save needed info in ordered lists
     with open(inputFile) as _list:
         for _data in _list.readlines()[lastLine:]:
             file_to_submit = []
@@ -83,12 +92,14 @@ def perform_transfers(inputFile, lastLine, direct=False):
             transfers.append(file_to_submit)
             destination = doc["destination"]
 
+    # Store general job metadata
     job_data = {'taskname': taskname,
                 'username': user,
                 'destination': destination,
                 'proxy': proxy,
                 'rest': rest_filetransfers}
 
+    # Pass collected info to submit function
     if len(transfers) > 0:
         if not direct:
             try:
@@ -97,28 +108,37 @@ def perform_transfers(inputFile, lastLine, direct=False):
             except Exception:
                 logging.exception('Submission process failed.')
 
+            # update last read line
             with open("task_process/transfers/last_transfer_new.txt", "w+") as _last:
                 _last.write(str(lastLine))
-
             os.rename("task_process/transfers/last_transfer_new.txt", "task_process/transfers/last_transfer.txt")
+
         elif direct:
             try:
                 submit((transfers, to_submit_columns), job_data, logging, direct=True)
             except Exception:
                 logging.exception('Registering direct stage files failed.')
 
+            # update last read line
             with open("task_process/transfers/last_transfer_direct_new.txt", "w+") as _last:
                 _last.write(str(lastLine))
-
             os.rename("task_process/transfers/last_transfer_direct_new.txt", "task_process/transfers/last_transfer_direct.txt")
 
     return user, taskname
 
 
 def monitor_manager(user, taskname):
-    """[summary]
+    """Monitor Rucio replica locks for user task
 
+    :param user: user HN name
+    :type user: str
+    :param taskname: [description]
+    :type taskname: [type]
+    :return: [description]
+    :rtype: [type]
     """
+
+    # Get proxy and rest endpoint information
     proxy = None
     if os.path.exists('task_process/rest_filetransfers.txt'):
         with open("task_process/rest_filetransfers.txt", "r") as _rest:
@@ -141,7 +161,10 @@ def monitor_manager(user, taskname):
 
 def submission_manager():
     """
+    Wrapper for Rucio submission algorithm. 
 
+    :return: results of perform_transfers function (non direct stageout only)
+    :rtype: tuple or None
     """
     last_line = 0
     if os.path.exists('task_process/transfers/last_transfer.txt'):
@@ -176,15 +199,14 @@ def submission_manager():
 def algorithm():
     """
     script algorithm
-    - create fts REST HTTPRequest
-    - delegate user proxy to fts if needed
-    - check for fts jobs to monitor and update states in oracle
+    - check for file reports from post-job 
+    - if not present register Rucio dataset and rule
     - get last line from last_transfer.txt
     - gather list of file to transfers
-        + group by source
-        + submit ftsjob and save fts jobid
+        + register temp and direct staged files
         + update info in oracle
-    - append new fts job ids to fts_jobids.txt
+    - monitor the Rucio replica locks for the datasets
+        + update info in oracle accordingly
     """
 
     user = None

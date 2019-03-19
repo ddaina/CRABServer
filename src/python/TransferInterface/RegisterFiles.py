@@ -8,16 +8,16 @@ import threading
 
 
 def submit(trans_tuple, job_data, log, direct=False):
-    """
-    submit tranfer jobs
+    """Manage threads for transfers submission through Rucio
 
-    - group files to be transferred by source site
-    - prepare jobs chunks of max 200 transfers
-    - submit fts job
-
-    :param context: fts client context
-    :param toTrans: [source pfn,destination pfn, oracle file id, source site]
-    :return: list of jobids submitted
+    :param trans_tuple: ordered list of needed xfer info (transfers, to_submit_columns)
+    :type trans_tuple: tuple
+    :param job_data: general CRAB job metadata
+    :type job_data: dict
+    :param log: log object
+    :type log: logging
+    :param direct: job output stored on temp or directly, defaults to False
+    :param direct: bool, optional
     """
     threadLock = threading.Lock()
     threads = []
@@ -39,6 +39,7 @@ def submit(trans_tuple, job_data, log, direct=False):
         log.exception('PhEDEx exception.')
         return
 
+    # Split threads by source RSEs
     sources = list(set([x[columns.index('source')] for x in toTrans]))
 
     os.environ["X509_CERT_DIR"] = os.getcwd()
@@ -48,6 +49,7 @@ def submit(trans_tuple, job_data, log, direct=False):
                             proxy)
                             #verbose=True)
 
+    # mapping lfn <--> pfn
     for source in sources:
 
         ids = [x[columns.index('id')] for x in toTrans if x[columns.index('source')] == source]
@@ -58,6 +60,7 @@ def submit(trans_tuple, job_data, log, direct=False):
         sorted_dest_lfns = []
         sorted_dest_pfns = []
 
+        # workaround for phedex.getPFN issue --> shuffling output order w.r.t. the list in input
         try:
             for chunk in chunks(src_lfns, 10):
                 unsorted_source_pfns = [[k[1], str(x)] for k, x in phedex.getPFN(source, chunk).items()]
@@ -83,24 +86,28 @@ def submit(trans_tuple, job_data, log, direct=False):
         source_pfns = sorted_source_pfns
         dest_lfns = sorted_dest_lfns
 
+        # saving file sizes and checksums
         filesizes = [x[columns.index('filesize')] for x in toTrans if x[columns.index('source')] == source]
         checksums = [x[columns.index('checksums')] for x in toTrans if x[columns.index('source')] == source]
 
+        # ordered list of replicas information
         jobs = zip(source_pfns, dest_lfns, ids, checksums, filesizes)
         job_columns = ['source_pfns', 'dest_lfns', 'ids', 'checksums', 'filesizes']
 
+        # ordered list of transfers details
         tx_from_source = [[job, source, taskname, user, destination] for job in jobs]
         tx_columns = ['job', 'source', 'taskname', 'user', 'destination']
 
+        # split submission process in chunks of max 200 files
         for files in chunks(tx_from_source, 200):
             if not direct:
                 log.info("Submitting: %s", files)
                 thread = submit_thread(threadLock,
-                                    log,
-                                    (files, tx_columns),
-                                    job_columns,
-                                    proxy,
-                                    to_update)
+                                       log,
+                                       (files, tx_columns),
+                                       job_columns,
+                                       proxy,
+                                       to_update)
                 thread.start()
                 threads.append(thread)
             elif direct:
@@ -118,6 +125,7 @@ def submit(trans_tuple, job_data, log, direct=False):
     for t in threads:
         t.join()
 
+    # update statuses in oracle table as per threads result
     for fileDoc in to_update:
         try:
             log.debug("%s/filetransfers?%s" % (rest_filetransfers, encodeRequest(fileDoc)))
@@ -126,23 +134,28 @@ def submit(trans_tuple, job_data, log, direct=False):
         except Exception:
             log.exception('Failed to mark files as submitted on DBs')
 
-    return
-
 
 class submit_thread(threading.Thread):
     """
 
     """
     def __init__(self, threadLock, log, files, job_column, proxy, toUpdate, direct=False):
-        """
+        """Rucio submit thread class
 
-        :param threadLock:
-        :param log:
-        :param context:
-        :param files:
-        :param source:
-        :param jobids:
-        :param toUpdate:
+        :param threadLock: thread lock
+        :type threadLock: threadLock
+        :param log: log object
+        :type log: logging
+        :param files: tuple of: list of files info and corresponding column name list (files, column_name)
+        :type files: tuple
+        :param job_column: list of column name for job ordered list
+        :type job_column: list
+        :param proxy: path to user proxy
+        :type proxy: str
+        :param toUpdate: list of file with status update required on oracleDB 
+        :type toUpdate: list
+        :param direct: job output stored on temp or directly, defaults to False
+        :param direct: bool, optional
         """
         threading.Thread.__init__(self)
         self.log = log
@@ -155,25 +168,31 @@ class submit_thread(threading.Thread):
         self.job_col = job_column
         self.source = self.files[0][self.file_col.index('source')]
         self.toUpdate = toUpdate
+
+        # N.B: Replace ":" in taskname as not accepted by Rucio
         self.taskname = self.files[0][self.file_col.index('taskname')].replace(":", "_")
         self.username = self.files[0][self.file_col.index('user')]
         self.destination = self.files[0][self.file_col.index('destination')]
         self.scope = 'user.' + self.username
 
     def run(self):
-        """
-
-        """
 
         self.threadLock.acquire()
         self.log.info("Processing transfers from: %s" % self.source)
 
-        self.log.info("Submitting %s transfers to FTS server" % len(self.files))
+        self.log.info("Submitting %s transfers to Rucio server" % len(self.files))
 
         try:
             os.environ["X509_USER_PROXY"] = self.proxy
             self.log.info("Initializing Rucio client for %s", self.taskname)
-            crabInj = CRABDataInjector(self.taskname, self.destination, account=self.username, scope=self.scope, auth_type='x509_proxy')
+            crabInj = CRABDataInjector(self.taskname,
+                                       self.destination,
+                                       account=self.username,
+                                       scope=self.scope,
+                                       auth_type='x509_proxy')
+
+            # Check if the corresponding dataset is already present in RUCIO
+            # In case is missing try to create it with the corresponding rule
             self.log.info("Checking for current dataset")
             crabInj.cli.get_did(self.scope, self.taskname)
         except Exception as ex:
@@ -184,12 +203,17 @@ class submit_thread(threading.Thread):
                 self.log.error("Failed to create dataset %s:%s on Rucio server: %s", "user.%s" % self.taskname, self.taskname, ex)
                 self.threadLock.release()
                 return
+
         try:
-            # TODO: pass crabInj to threads
+            # save the lfn of files directly staged by CRAB if any
             direct_files = []
             if os.path.exists('task_process/transfers/registered_direct_files.txt'):
                 with open("task_process/transfers/registered_direct_files.txt", "r") as list_file:
                     direct_files = [x.split('\n')[0] for x in list_file.readlines()]
+            
+            # get needed information from ordered list. Discarding direct staged files
+            # TODO: since we are splitting threads in chunks 
+            #       we may consider to use dict instead of lists.
             self.log.debug(self.job_col)
             dest_lfns = [x[self.job_col.index('dest_lfns')] for x in self.job if x[self.job_col.index('dest_lfns')] not in direct_files]
             source_pfns = [x[self.job_col.index('source_pfns')] for x in self.job if x[self.job_col.index('dest_lfns')] not in direct_files]
@@ -230,6 +254,7 @@ class submit_thread(threading.Thread):
             self.threadLock.release()
             return
 
+        # update statuses on OracleDB
         try:
             fileDoc = dict()
             fileDoc['asoworker'] = 'rucio'
