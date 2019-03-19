@@ -26,7 +26,7 @@ def monitor(user, taskname, log):
         scope = "user."+user
         name = "/"+taskname.replace(":", "_")
         log.info("Initializing Monitor Rucio client for %s", taskname)
-        crabInj = CRABDataInjector("", "", account=user, auth_type='x509_proxy')
+        crabInj = CRABDataInjector("", "", scope=scope, account=user, auth_type='x509_proxy')
 
         id_map = {}
         lfn_map = {}
@@ -49,7 +49,7 @@ def monitor(user, taskname, log):
                         doc = json.loads(_data)
                         id_map.update({doc['destination_lfn']: doc['id']})
                         lfn_map.update({doc['id']: doc['destination_lfn']})
-                        source_rse.update({doc['destination_lfn']: doc['source']+"_Temp"})
+                        # source_rse.update({doc['destination_lfn']: doc['source']+"_Temp"})
                     except Exception:
                         continue
 
@@ -137,7 +137,9 @@ def monitor(user, taskname, log):
                 crabInj.cli.detach_dids(scope, name, list_failed_name)
                 sources = list(set([source_rse[x['name']] for x in list_failed_name]))
                 for source in sources:
-                    crabInj.delete_replicas(source, [x for x in list_failed_name if source_rse[x['name']] == source])
+                    to_delete = [x for x in list_failed_name if source_rse[x['name']] == source]
+                    log.debug("Deleting %s from %s" % (to_delete, source))
+                    crabInj.delete_replicas(source, to_delete)
                 mark_failed([id_map[x[0]] for x in list_failed], [x[1] for x in list_failed], oracleDB)
         except ReplicaNotFound:
                 try:
@@ -154,7 +156,9 @@ def monitor(user, taskname, log):
                 crabInj.cli.detach_dids(scope, name, list_stuck_name)
                 sources = list(set([source_rse[x['name']] for x in list_stuck_name]))
                 for source in sources:
-                    crabInj.delete_replicas(source, [x for x in list_stuck_name if source_rse[x['name']] == source])
+                    to_delete = [x for x in list_stuck_name if source_rse[x['name']] == source]
+                    log.debug("Deleting %s from %s" % (to_delete, source))
+                    crabInj.delete_replicas(source, to_delete)
                 mark_failed([id_map[x[0]] for x in list_stuck], [x[1] for x in list_stuck], oracleDB)
         except ReplicaNotFound:
                 try:
