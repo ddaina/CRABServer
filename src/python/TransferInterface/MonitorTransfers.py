@@ -113,6 +113,7 @@ def monitor(user, taskname, log):
                 log.error("No FTS job ID available for stuck transfer %s. Rucio could have failed to submit FTS job." % name_)
                 list_failed.append((name_, "No FTS job ID available for stuck transfers. Rucio could have failed to submit FTS job."))
 
+        direct_files = []
         if os.path.exists('task_process/transfers/registered_direct_files.txt'):
             with open("task_process/transfers/registered_direct_files.txt", "r") as list_file:
                 direct_files = [x.split('\n')[0] for x in list_file.readlines()]
@@ -176,7 +177,7 @@ def monitor(user, taskname, log):
                     for _data in list_file.readlines():
                         already_list.append(_data.split("\n")[0])
 
-            list_update_filt = [x for x in list_update if x not in already_list]
+            list_update_filt = [x for x in list_update if x not in already_list and x[0] not in direct_files]
 
             if len(list_update_filt) > 0:
                 list_update = list_update_filt
