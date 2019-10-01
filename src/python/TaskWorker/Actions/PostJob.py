@@ -259,11 +259,12 @@ class ASOServerJob(object):
     def __init__(self, logger, aso_start_time, aso_start_timestamp, dest_site, source_dir,
                  dest_dir, source_sites, job_id, filenames, reqname, log_size,
                  log_needs_transfer, job_report_output, job_ad, crab_retry, retry_timeout, \
-                 job_failed, transfer_logs, transfer_outputs, rest_host, rest_uri_no_api):
+                 job_failed, transfer_logs, transfer_outputs, rest_host, rest_uri_no_api, pubname):
         """
         ASOServerJob constructor.
         """
         self.logger = logger
+        self.publishname = pubname
         self.docs_in_transfer = None
         self.crab_retry = crab_retry
         self.retry_timeout = retry_timeout
@@ -801,6 +802,7 @@ class ASOServerJob(object):
                           'username': doc['user'],
                           'taskname': doc['workflow'],
                           'start_time': self.aso_start_timestamp,
+                          'publishname': self.publishname,
                           'destination': doc['destination'],
                           'destination_lfn': doc['destination_lfn'],
                           'source': doc['source'],
@@ -827,6 +829,7 @@ class ASOServerJob(object):
                           'username': doc['username'],
                           'taskname': doc['taskname'],
                           'start_time': self.aso_start_timestamp,
+                          'publishname': self.publishname,
                           'source': doc['source'],
                           'source_lfn': doc['source_lfn'],
                           'filesize': doc['filesize'],
@@ -2080,7 +2083,7 @@ class PostJob():
                                self.job_ad, self.crab_retry, \
                                self.retry_timeout, self.job_failed, \
                                self.transfer_logs, self.transfer_outputs,
-                               self.rest_host, self.rest_uri_no_api)
+                               self.rest_host, self.rest_uri_no_api, self.publish_name)
         if first_pj_execution():
             aso_job_retval = ASO_JOB.run()
         else:

@@ -188,7 +188,6 @@ def submission_manager():
             _last.write(str(last_line))
             logging.info("last line direct is: %s", last_line)
 
-
     if os.path.exists('task_process/transfers_direct.txt'):
         perform_transfers("task_process/transfers_direct.txt",
                           last_line, direct=True)
