@@ -12,22 +12,26 @@ function cache_status {
 function manage_transfers {
     log "Running transfers.py"
 
-    # TODO: automatic swtich to RUCIO transfers
-    DEST_LFN=`python -c 'import sys, json; print json.loads( open("task_process/transfers.txt").readlines()[0] )["destination_lfn"]' `
+    if [[ -f task_process/transfers.txt ]]; then
+        # TODO: automatic swtich to RUCIO transfers
+        DEST_LFN=`python -c 'import sys, json; print json.loads( open("task_process/transfers.txt").readlines()[0] )["destination_lfn"]' `
 
-    if [[ $DEST_LFN =~ ^/store/test/rucio/* ]]; then
-      source /cvmfs/cms.cern.ch/rucio/setup.sh
-      timeout 15m python task_process/RUCIO_transfers.py
+        if [[ $DEST_LFN =~ ^/store/test/rucio/* ]]; then
+        source /cvmfs/cms.cern.ch/rucio/setup.sh
+        timeout 15m python task_process/RUCIO_transfers.py
+        else
+        timeout 15m python task_process/FTS_transfers.py
+        fi
+
+        err=$?
+        if [ $err -eq 137 ] || [ $err -eq 124 ]; then
+            log "ERROR: transfers.py exited with process timeout";
+        elif [ $err -eq 0 ]; then
+            log "transfers.py exited.";
+        else log "ERROR: transfers.py exited with $err";
+        fi
     else
-      timeout 15m python task_process/FTS_transfers.py
-    fi
-
-    err=$?
-    if [ $err -eq 137 ] || [ $err -eq 124 ]; then
-        log "ERROR: transfers.py exited with process timeout";
-    elif [ $err -eq 0 ]; then
-        log "transfers.py exited.";
-    else log "ERROR: transfers.py exited with $err";
+        log "No transfers.txt found, waiting for jobs to finish.";
     fi
 }
 
