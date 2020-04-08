@@ -16,7 +16,7 @@ RUN mkdir -p /data/srv/tmp && mkdir -p /data/srv/TaskManager
 WORKDIR ${WDIR}
 
 # install
-COPY --chown=${USER}:${USER} install.sh .
+COPY --chown=1000:1000 install.sh .
 RUN echo "Y" > yes.repo
 RUN sh install.sh < yes.repo
 
