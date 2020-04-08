@@ -38,7 +38,7 @@ env
         ln -s $RELEASE current
         cd $MYTESTAREA
 
-        echo 'Make config file and stop + start '
+#        echo 'Make config file and stop + start '
 
 # else
 #         echo 'Please change to CRAB3 user, TW cannot be installed by root'
