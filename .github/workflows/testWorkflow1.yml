@@ -2,31 +2,21 @@
 
 name: Manual workflow v1
 
-# Controls when the action will run. Workflow runs when manually triggered using the UI
-# or API.
 on:
   workflow_dispatch:
-    # Inputs the workflow accepts.
     inputs:
       tag:
-        description: 'CRABServer tag to deploy'
-        # Input has to be provided for the workflow to run
+        description: 'CRABServer tag to deploy:'
         required: true
       environment:
-        description: 'Environment (host) where given tag should be deployed'
-        # Input has to be provided for the workflow to run
+        description: 'Host where given tag should be deployed:'
         required: true   
         default: preprod
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "greet"
   greet:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-    # Runs a single command using the runners shell
     - name: Send greeting
       run: echo "Hello yoyo ${{ github.event.inputs.name }}"
