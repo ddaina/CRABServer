@@ -12,7 +12,7 @@ on:
         description: 'CRABServer tag to deploy'
         # Input has to be provided for the workflow to run
         required: true
-        default: ${GITHUB_SHA}
+        default: preprod
       environment:
         description: 'Environment (host) where given tag should be deployed'
         # Input has to be provided for the workflow to run
