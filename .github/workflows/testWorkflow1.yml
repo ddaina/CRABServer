@@ -18,5 +18,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Send greeting
-      run: echo "Hello yoyo ${{ github.event.inputs.name }}"
+    - name: Invoke crabserver deployment
+      uses: joelwmale/webhook-action@master
+      with:
+        url: ${{ secrets.WEBHOOK_URL }}
+        headers: '{"repository": "ddaina/crabserver"}'
+        body: '{"event": "deployment", "repository": "ddaina/crabserver"}'
+        
+        
