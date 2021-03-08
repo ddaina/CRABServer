@@ -21,7 +21,7 @@ jobs:
   get-environment:
     runs-on: ubuntu-latest
     outputs:
-      environment_name: ${{ github.event.inputs.hostName }}
+      hostName: ${{ github.event.inputs.hostName }}
     steps:
       - id: get_environment
         run: |
