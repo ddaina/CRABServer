@@ -1,13 +1,21 @@
+# This workflow can be used to deploy given crabserver to provided environment.
+# workflow requires to enter to input parameters: TAG and ENVIRONMENT
+#Workflow consists of 2 jobs:
+#    1. get-host: job set-up host where crabserver should be deloyed,
+#       e.g. if environment is set to 'preprod', crabserver is deployed to 'cmsweb-testbed.cern.ch'
+#    2. deploy: job callS a remote webhook endpoint with a JSON or form-urlencoded payload.
+#       Read more at: https://github.com/marketplace/actions/workflow-webhook-action
+
 name: CRABServer deployment
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'CRABServer tag to deploy:'
+        description: 'TAG:'
         required: true
       environment:
-        description: 'Environment where given tag should be deployed:'
+        description: 'ENVIRONMENT:'
         required: true
         default: preprod
 
@@ -17,6 +25,7 @@ jobs:
     outputs:
       hostName: ${{ steps.get_environment.outputs.hostName }}
     steps:
+      - name: Set-up host
       - id: get_environment
         run: |
           if [ "${{ github.event.inputs.environment }}" = "test2" ]
@@ -26,6 +35,7 @@ jobs:
           then
             echo "::set-output name=hostName::cmsweb-testbed.cern.ch"
           fi
+
   deploy:
     runs-on: ubuntu-latest
     needs: [get-host]
