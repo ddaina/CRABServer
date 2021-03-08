@@ -16,6 +16,16 @@ on:
         description: 'Host where given tag should be deployed:'
         required: true   
         default: preprod
+    steps:
+      - id: get_environment
+        run: |
+          if [ "${{ github.event.inputs.hostName }}" = "test2" ]
+          then
+            echo "::set-output name=hostName::cmsweb-test2.cern.ch"
+          elif [ "${{ github.event.inputs.hostName }}" = "preprod" ]
+          then
+            echo "::set-output name=hostName::cmsweb-testbed.cern.ch"
+          fi        
 
 jobs:
   deploy:
