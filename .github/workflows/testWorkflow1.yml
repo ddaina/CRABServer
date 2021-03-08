@@ -21,10 +21,10 @@ jobs:
         run: |
           if [ "${{ github.event.inputs.hostName }}" = "test2" ]
           then
-            echo "::set-output name=environment_name::cmsweb-test2.cern.ch"
+            echo "::set-output name=hostName::cmsweb-test2.cern.ch"
           elif [ "${{ github.event.inputs.hostName }}" = "preprod" ]
           then
-            echo "::set-output name=environment_name::cmsweb-testbed.cern.ch"
+            echo "::set-output name=hostName::cmsweb-testbed.cern.ch"
           fi   
 
   deploy:
