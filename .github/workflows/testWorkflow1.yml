@@ -1,9 +1,3 @@
-# This is a basic workflow that is manually triggered
-
-
-
-
-
 name: CRABServer deployment
 
 on:
@@ -43,14 +37,4 @@ jobs:
         webhook_url: ${{ secrets.WEBHOOK_URL }}
         webhook_secret: ${{ secrets.WEBHOOK_SECRET }}
         data: '{ "hostName": "${{ github.event.outputs.hostName }}", "tag" : "${{ github.event.inputs.tag }}" }'    
-      #uses: joelwmale/webhook-action@master
-      #with:
-      #  url: ${{ secrets.WEBHOOK_URL }}
-      #  headers: '{"repository": "ddaina/crabserver"}'
-      #  body: '{"event": "deployment", "repository": "ddaina/crabserver"}'  
-        
-    
-    
-
-        
         
