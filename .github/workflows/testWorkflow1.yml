@@ -15,7 +15,13 @@ on:
       hostName:
         description: 'Host where given tag should be deployed:'
         required: true   
-        default: preprod
+        default: preprod     
+
+jobs:
+  get-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment_name: ${{ github.event.inputs.hostName }}
     steps:
       - id: get_environment
         run: |
@@ -25,11 +31,11 @@ on:
           elif [ "${{ github.event.inputs.hostName }}" = "preprod" ]
           then
             echo "::set-output name=hostName::cmsweb-testbed.cern.ch"
-          fi        
+          fi   
 
-jobs:
   deploy:
     runs-on: ubuntu-latest
+    needs: [get-environment]
     steps:
     - name: Invoke crabserver deployment
       uses: distributhor/workflow-webhook@v1
