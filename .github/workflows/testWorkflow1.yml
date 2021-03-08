@@ -21,7 +21,7 @@ jobs:
   get-environment:
     runs-on: ubuntu-latest
     outputs:
-      hostName: ${{ github.event.inputs.hostName }}
+      hostName: ${{ github.event.outputs.hostName }}
     steps:
       - id: get_environment
         run: |
@@ -42,7 +42,7 @@ jobs:
       env:
         webhook_url: ${{ secrets.WEBHOOK_URL }}
         webhook_secret: ${{ secrets.WEBHOOK_SECRET }}
-        data: '{ "hostName": "${{ github.event.inputs.hostName }}", "tag" : "${{ github.event.inputs.tag }}" }'    
+        data: '{ "hostName": "${{ github.event.outputs.hostName }}", "tag" : "${{ github.event.inputs.tag }}" }'    
       #uses: joelwmale/webhook-action@master
       #with:
       #  url: ${{ secrets.WEBHOOK_URL }}
