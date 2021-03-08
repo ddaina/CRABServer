@@ -6,35 +6,33 @@ on:
       tag:
         description: 'CRABServer tag to deploy:'
         required: true
-      hostName:
-        description: 'Host where given tag should be deployed:'
-        required: true   
-        default: preprod     
+      environment:
+        description: 'Environment where given tag should be deployed:'
+        required: true
+        default: preprod
 
 jobs:
-  get-environment:
+  get-host:
     runs-on: ubuntu-latest
     outputs:
-      environment_name: ${{ steps.get_environment.outputs.hostName }}
+      hostName: ${{ steps.get_environment.outputs.hostName }}
     steps:
       - id: get_environment
         run: |
-          if [ "${{ github.event.inputs.hostName }}" = "test2" ]
+          if [ "${{ github.event.inputs.environment }}" = "test2" ]
           then
             echo "::set-output name=hostName::cmsweb-test2.cern.ch"
-          elif [ "${{ github.event.inputs.hostName }}" = "preprod" ]
+          elif [ "${{ github.event.inputs.environment }}" = "preprod" ]
           then
             echo "::set-output name=hostName::cmsweb-testbed.cern.ch"
-          fi   
-
+          fi
   deploy:
     runs-on: ubuntu-latest
-    needs: [get-environment]  
+    needs: [get-host]
     steps:
     - name: Invoke crabserver deployment
       uses: distributhor/workflow-webhook@v1
       env:
         webhook_url: ${{ secrets.WEBHOOK_URL }}
         webhook_secret: ${{ secrets.WEBHOOK_SECRET }}
-        data: '{ "hostName": "${{ needs.get-environment.outputs.environment_name }}", "tag" : "${{ github.event.inputs.tag }}" }'    
-        
+        data: '{ "hostName": "${{ needs.get-host.outputs.hostName }}", "tag" : "${{ github.event.inputs.tag }}" }'
