@@ -1,5 +1,9 @@
 # This is a basic workflow that is manually triggered
 
+
+
+
+
 name: CRABServer deployment
 
 on:
@@ -23,7 +27,7 @@ jobs:
       env:
         webhook_url: ${{ secrets.WEBHOOK_URL }}
         webhook_secret: ${{ secrets.WEBHOOK_SECRET }}
-        data: '{ "weapon": "hammer", "drink" : "beer" }'    
+        data: '{ "weapon": ${{ github.event.inputs.hostName }}, "drink" : ${{ github.event.inputs.tag }} }'    
       #uses: joelwmale/webhook-action@master
       #with:
       #  url: ${{ secrets.WEBHOOK_URL }}
