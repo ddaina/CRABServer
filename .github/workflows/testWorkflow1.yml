@@ -19,16 +19,18 @@ jobs:
 
     steps:
     - name: Invoke crabserver deployment
-      uses: distributhor/workflow-webhook@v1
-      env:
-        webhook_url: ${{ secrets.WEBHOOK_URL }}
-        webhook_secret: ${{ secrets.WEBHOOK_SECRET }}
-        data: '{ "weapon": "hammer", "drink" : "beer" }'    
+      uses: joelwmale/webhook-action@master
+      with:
+        url: ${{ secrets.WEBHOOK_URL }}
+        headers: '{"repository": "ddaina/crabserver"}'
+        body: '{"event": "deployment", "repository": "ddaina/crabserver"}'  
+        
+    #  uses: distributhor/workflow-webhook@v1
+    #  env:
+    #    webhook_url: ${{ secrets.WEBHOOK_URL }}
+    #    webhook_secret: ${{ secrets.WEBHOOK_SECRET }}
+    #    data: '{ "weapon": "hammer", "drink" : "beer" }'    
     
-      #uses: joelwmale/webhook-action@master
-      #with:
-      #  url: ${{ secrets.WEBHOOK_URL }}
-      #  headers: '{"repository": "ddaina/crabserver"}'
-      #  body: '{"event": "deployment", "repository": "ddaina/crabserver"}'
+
         
         
