@@ -15,26 +15,26 @@ jobs:
   get-environment:
     runs-on: ubuntu-latest
     outputs:
-      hostName: ${{ github.event.outputs.hostName }}
+      environment_name: ${{ steps.get_environment.outputs.hostName }}
     steps:
       - id: get_environment
         run: |
           if [ "${{ github.event.inputs.hostName }}" = "test2" ]
           then
-            echo "::set-output name=hostName::cmsweb-test2.cern.ch"
+            echo "::set-output name=environment_name::cmsweb-test2.cern.ch"
           elif [ "${{ github.event.inputs.hostName }}" = "preprod" ]
           then
-            echo "::set-output name=hostName::cmsweb-testbed.cern.ch"
+            echo "::set-output name=environment_name::cmsweb-testbed.cern.ch"
           fi   
 
   deploy:
     runs-on: ubuntu-latest
-    needs: [get-environment]
+    needs: [get-environment]  
     steps:
     - name: Invoke crabserver deployment
       uses: distributhor/workflow-webhook@v1
       env:
         webhook_url: ${{ secrets.WEBHOOK_URL }}
         webhook_secret: ${{ secrets.WEBHOOK_SECRET }}
-        data: '{ "hostName": "${{ github.event.outputs.hostName }}", "tag" : "${{ github.event.inputs.tag }}" }'    
+        data: '{ "hostName": "${{ get-environment.outputs.environment_name }}", "tag" : "${{ github.event.inputs.tag }}" }'    
         
