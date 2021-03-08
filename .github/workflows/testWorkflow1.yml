@@ -33,6 +33,8 @@ jobs:
           elif [ "${{ github.event.inputs.environment }}" = "preprod" ]
           then
             echo "::set-output name=hostName::cmsweb-testbed.cern.ch"
+          else
+            exit 1 
           fi
 
   deploy:
