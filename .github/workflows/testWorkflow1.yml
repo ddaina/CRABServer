@@ -36,5 +36,5 @@ jobs:
       env:
         webhook_url: ${{ secrets.WEBHOOK_URL }}
         webhook_secret: ${{ secrets.WEBHOOK_SECRET }}
-        data: '{ "hostName": "${{ get-environment.outputs.environment_name }}", "tag" : "${{ github.event.inputs.tag }}" }'    
+        data: '{ "hostName": "${{ needs.get-environment.outputs.environment_name }}", "tag" : "${{ github.event.inputs.tag }}" }'    
         
