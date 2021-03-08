@@ -25,7 +25,6 @@ jobs:
     outputs:
       hostName: ${{ steps.get_environment.outputs.hostName }}
     steps:
-      - name: Set-up host
       - id: get_environment
         run: |
           if [ "${{ github.event.inputs.environment }}" = "test2" ]
