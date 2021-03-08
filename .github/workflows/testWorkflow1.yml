@@ -1,6 +1,6 @@
 # This is a basic workflow that is manually triggered
 
-name: Manual workflow v1
+name: CRABServer deployment
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
       tag:
         description: 'CRABServer tag to deploy:'
         required: true
-      environment:
+      hostName:
         description: 'Host where given tag should be deployed:'
         required: true   
         default: preprod
