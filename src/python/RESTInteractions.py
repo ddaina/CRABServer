@@ -5,6 +5,9 @@ Handles client interactions with remote REST interface
 import os
 import time
 import random
+import subprocess
+from ServerUtilities import encodeRequest
+import json
 
 try:
     from urllib import quote as urllibQuote  # Python 2.X
@@ -18,8 +21,6 @@ except:  # pylint: disable=bare-except
     from httplib import HTTPException  # old Python 2 version in CMSSW_7
 import pycurl
 
-from WMCore.Services.Requests import JSONRequests
-from WMCore.Services.pycurl_manager import RequestHandler
 
 try:
     from TaskWorker import __version__
@@ -68,8 +69,8 @@ class HTTPRequests(dict):
         """
         dict.__init__(self)
         #set up defaults
-        self.setdefault("accept_type", 'text/html')
-        self.setdefault("content_type", 'application/x-www-form-urlencoded')
+        #self.setdefault("accept_type", 'text/html')
+        #self.setdefault("content_type", 'application/x-www-form-urlencoded')
         self.setdefault("host", hostname)
         # setup port 8443 for cmsweb services (leave them alone things like personal private VM's)
         if self['host'].startswith("https://cmsweb") or self['host'].startswith("cmsweb"):
@@ -85,20 +86,20 @@ class HTTPRequests(dict):
         self.setdefault("cert", localcert)
         self.setdefault("key", localkey)
         # get the URL opener
-        self.setdefault("conn", self.getUrlOpener())
+        #self.setdefault("conn", self.getUrlOpener())
         self.setdefault("version", version)
         self.setdefault("retry", retry)
         self.setdefault("verbose", verbose)
         self.setdefault("userAgent", userAgent)
         self.logger = logger if logger else logging.getLogger()
 
-    def getUrlOpener(self):
-        """
-        method getting an HTTPConnection, it is used by the constructor such
-        that a sub class can override it to have different type of connection
-        i.e. - if it needs authentication, or some fancy handler
-        """
-        return RequestHandler(config={'timeout': 300, 'connecttimeout' : 300})
+    # def getUrlOpener(self):
+    #     """
+    #     method getting an HTTPConnection, it is used by the constructor such
+    #     that a sub class can override it to have different type of connection
+    #     i.e. - if it needs authentication, or some fancy handler
+    #     """
+    #     return RequestHandler(config={'timeout': 300, 'connecttimeout' : 300})
 
     def get(self, uri=None, data=None):
         """
@@ -128,62 +129,58 @@ class HTTPRequests(dict):
         """
         Make a request to the remote database. for a give URI. The type of
         request will determine the action take by the server (be careful with
-        DELETE!). Data should be a dictionary of {dataname: datavalue}.
+        DELETE!).
 
         Returns a tuple of the data from the server, decoded using the
-        appropriate method the response status and the response reason, to be
+        appropriate method, the response status and the response reason, to be
         used in error handling.
 
         You can override the method to encode/decode your data by passing in an
         encoding/decoding function to this method. Your encoded data must end up
         as a string.
         """
+
         data = data or {}
-        headers = {
-            "User-agent": "%s/%s" % (self['userAgent'], self['version']),
-            "Accept": "*/*",
-        }
 
         #Quoting the uri since it can contain the request name, and therefore spaces (see #2557)
         uri = urllibQuote(uri)
         caCertPath = self.getCACertPath()
         url = 'https://' + self['host'] + uri
 
-        # retries this up at least 3 times, or up to self['retry'] times for range of exit codes
-        # retries are counted AFTER 1st try, so call is made up to nRetries+1 times !
-        nRetries = max(2, self['retry'])
-        for i in range(nRetries +1):
-            try:
-                response, datares = self['conn'].request(url, data, encode=True, headers=headers, verb=verb, doseq=True,
-                                                         ckey=self['key'], cert=self['cert'], capath=caCertPath,
-                                                         verbose=self['verbose'])
-            except Exception as ex:
-                # add here other temporary errors we need to retry
-                if (i < 2) or (retriableError(ex) and (i < self['retry'])):
-                    sleeptime = 20 * (i + 1) + random.randint(-10, 10)
-                    msg = "Sleeping %s seconds after HTTP error. Error details:  " % sleeptime
-                    if hasattr(ex, 'headers'):
-                        msg += str(ex.headers)
-                    else:
-                        msg += str(ex)
-                    self.logger.debug(msg)
-                    time.sleep(sleeptime)
-                else:
-                    # this was the last retry
-                    msg = "Fatal error trying to connect to %s using %s. Error details: " % (url, data)
-                    msg = msg+str(ex.headers) if hasattr(ex, 'headers') else msg+str(ex)
-                    self.logger.error(msg)
-                    raise
+        #if it is a dictionary, we need to encode it to string
+        if isinstance(data, dict):
+            data = encodeRequest(data)
 
-            else:
-                break
-        try:
-            result = JSONRequests(idict={"pycurl" : True}).decode(datares)
-        except Exception as ex:
-            msg = "Fatal error reading data from %s using %s" % (url, data)
-            self.logger.error(msg)
-            raise #really exit and raise exception
-        return result, response.status, response.reason
+        if verb in ['GET', 'HEAD']:
+            url = url + '?' + data
+            data = ''
+
+        command = ''
+        #command below will return 2 values separated by comma: 1) curl result and 2) HTTP code
+        command += 'curl -w ",%{{http_code}}\\n" -f -X {0}'.format(verb)
+        command += ' -H "User-Agent: %s/%s"' % (self['userAgent'], self['version'])
+        command += ' -H "Accept: */*"'
+        command += ' --data "%s"' % data
+        command += ' --cert "%s"' % self['cert']
+        command += ' --key "%s"' % self['key']
+        command += ' --capath "%s"' % caCertPath
+        command += ' "%s"' % url
+
+        stdout, stderr, rc = None, None, 99999
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        stdout, stderr = process.communicate()
+        exitcode = process.returncode
+        #split the output returned into actuall result and HTTP code
+        result, http_code = stdout.rsplit(',', 1)
+        resultNew = json.loads(result)
+
+        if exitcode != 0:
+                raise Exception('Failed to execute command %s. stderr is:\n%s' % (command, stderr))
+
+        #TODO 0: need to add retries part based on allowed retriable errors
+        #TODO 1: currently code does not return response reason but instead always returns "OK"
+        #this should be fixed as it is being used for error handling
+        return resultNew, int(http_code), "OK"
 
     @staticmethod
     def getCACertPath():
@@ -236,3 +233,4 @@ class CRABRest:
     def delete(self, api=None, data=None):
         uri = self.uriNoApi + api
         return self.server.delete(uri, data)
+
